@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#0c0a0b" />
+<title>Bottle Ocean · 瓶中海洋像素沙盒</title>
+<style>
+  :root {
+    --ink: #f8ecd9;
+    --muted: rgba(240, 221, 197, 0.55);
+    --faint: rgba(240, 221, 197, 0.3);
+    --accent: #ffb36b;
+    --accent-soft: #ffd8a9;
+    --teal: #7edbce;
+    --panel: rgba(14, 16, 18, 0.72);
+    --panel-deep: rgba(10, 12, 14, 0.9);
+    --hair: rgba(255, 205, 157, 0.15);
+    --font-ui: "Segoe UI", "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    --font-display: "Georgia", "Palatino Linotype", "Songti SC", "SimSun", serif;
+    --font-mono: "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+  body {
+    background: #0b0909;
+    color: var(--ink);
+    font-family: var(--font-ui);
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+  button, input { font: inherit; }
+  button { color: inherit; }
+  button:focus { outline: none; }
+  button:focus-visible, input:focus-visible { outline: 1px solid rgba(255, 190, 120, 0.7); outline-offset: 2px; }
+
+  #gl {
+    position: fixed;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #0b0909;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    cursor: grab;
+    touch-action: none;
+  }
+  #gl.dragging { cursor: grabbing; }
+
+  .hud { position: fixed; z-index: 12; pointer-events: none; }
+
+  #brand {
+    top: 24px;
+    left: 26px;
+    max-width: 430px;
+    text-shadow: 0 1px 2px rgba(8, 5, 3, 0.55), 0 3px 12px rgba(8, 5, 3, 0.55), 0 8px 32px rgba(8, 5, 3, 0.4);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .brand-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.27em;
+    color: rgba(255, 216, 173, 0.68);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .brand-eyebrow::before {
+    content: "";
+    width: 26px;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(255, 179, 107, 0), var(--accent));
+    display: block;
+  }
+  .brand-eyebrow i {
+    font-style: normal;
+    color: rgba(255, 235, 210, 0.42);
+    letter-spacing: 0.14em;
+  }
+  #brand h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(32px, 3.5vw, 53px);
+    line-height: 0.94;
+    letter-spacing: 0.015em;
+    color: #fff5e4;
+  }
+  #brand h1 em {
+    font-style: italic;
+    color: var(--accent-soft);
+    font-weight: 400;
+  }
+  .brand-sub {
+    margin-top: 13px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: rgba(255, 235, 211, 0.52);
+    font-size: 10px;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+  }
+  .brand-sub span { color: rgba(255, 180, 112, 0.6); }
+  .brand-sub b { font-weight: 500; color: rgba(255, 232, 205, 0.74); }
+
+  #control-panel {
+    position: fixed;
+    z-index: 30;
+    top: 20px;
+    right: 20px;
+    width: 348px;
+    max-height: calc(100vh - 40px);
+    display: flex;
+    flex-direction: column;
+    border-radius: 17px;
+    border: 1px solid var(--hair);
+    background:
+      linear-gradient(155deg, rgba(27, 27, 26, 0.78) 0%, rgba(13, 17, 19, 0.76) 47%, rgba(8, 11, 13, 0.86) 100%);
+    box-shadow:
+      0 24px 70px rgba(0, 0, 0, 0.46),
+      inset 0 1px 0 rgba(255, 245, 226, 0.08),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.025);
+    backdrop-filter: blur(22px) saturate(125%);
+    -webkit-backdrop-filter: blur(22px) saturate(125%);
+    overflow: hidden;
+    transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.22, 0.8, 0.2, 1);
+    animation: panel-in 1.0s cubic-bezier(0.22, 0.8, 0.2, 1) both;
+    animation-delay: 0.35s;
+  }
+  @keyframes panel-in {
+    from { opacity: 0; transform: translateX(14px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  #control-panel::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(150deg, rgba(255, 196, 137, 0.065), transparent 27%, transparent 70%, rgba(104, 219, 206, 0.035));
+    pointer-events: none;
+  }
+  .panel-head {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 17px 18px 13px 19px;
+    border-bottom: 1px solid rgba(255, 233, 205, 0.09);
+    flex: 0 0 auto;
+  }
+  .panel-kicker {
+    display: block;
+    color: rgba(255, 188, 119, 0.62);
+    font-family: var(--font-mono);
+    font-size: 8px;
+    letter-spacing: 0.22em;
+    margin-bottom: 5px;
+  }
+  .panel-head h2 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 22px;
+    letter-spacing: 0.02em;
+    color: #fff3df;
+  }
+  .panel-head h2 em {
+    font-family: var(--font-ui);
+    font-style: normal;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: rgba(244, 224, 199, 0.42);
+    margin-left: 6px;
+  }
+  .panel-head-actions { display: flex; gap: 5px; }
+  .icon-button {
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 222, 183, 0.14);
+    border-radius: 8px;
+    background: rgba(255, 246, 231, 0.035);
+    color: rgba(255, 236, 211, 0.65);
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  }
+  .icon-button:hover { background: rgba(255, 210, 158, 0.1); color: var(--accent-soft); border-color: rgba(255, 200, 144, 0.3); }
+  .icon-button svg { width: 13px; height: 13px; display: block; }
+  #panel-toggle svg { transition: transform 0.3s ease; }
+  #control-panel.collapsed #panel-toggle svg { transform: rotate(180deg); }
+
+  .panel-scroll {
+    position: relative;
+    z-index: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 2px 18px 8px 19px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 197, 138, 0.3) transparent;
+    max-height: calc(100vh - 214px);
+    transition: max-height 0.4s ease, padding 0.4s ease, opacity 0.3s ease;
+  }
+  #control-panel.collapsed .panel-scroll { max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0; border: none; }
+  .panel-scroll::-webkit-scrollbar { width: 4px; }
+  .panel-scroll::-webkit-scrollbar-thumb { background: rgba(255, 197, 138, 0.25); border-radius: 9px; }
+  .panel-scroll::-webkit-scrollbar-track { background: transparent; }
+
+  .control-section {
+    padding: 10px 0 9px;
+    border-bottom: 1px solid rgba(255, 233, 205, 0.075);
+  }
+  .control-section:last-child { border-bottom: none; }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 7px;
+  }
+  .section-index {
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: rgba(255, 181, 107, 0.62);
+    letter-spacing: 0.08em;
+  }
+  .section-head h3 {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 550;
+    letter-spacing: 0.16em;
+    color: rgba(255, 240, 221, 0.88);
+  }
+  .section-head em {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    font-weight: 400;
+    font-style: normal;
+    letter-spacing: 0.18em;
+    color: rgba(244, 219, 187, 0.3);
+  }
+
+  .control {
+    display: grid;
+    grid-template-columns: 91px minmax(0, 1fr) 45px;
+    align-items: center;
+    column-gap: 7px;
+    margin-bottom: 4px;
+    min-height: 19px;
+  }
+  .control:last-child { margin-bottom: 1px; }
+  .control-head { display: contents; }
+  .control-head label {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: 10px;
+    letter-spacing: 0.045em;
+    color: rgba(255, 238, 215, 0.67);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .control-head output {
+    grid-column: 3;
+    grid-row: 1;
+    min-width: 42px;
+    text-align: right;
+    font-family: var(--font-mono);
+    font-size: 8.5px;
+    color: rgba(255, 211, 160, 0.86);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+  .control input[type="range"] {
+    grid-column: 2;
+    grid-row: 1;
+    width: 100%;
+    height: 14px;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    width: 100%;
+    height: 16px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+    --fill: 35%;
+  }
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 2px;
+    border-radius: 99px;
+    background: linear-gradient(to right, var(--accent) 0%, var(--accent) var(--fill), rgba(255, 245, 230, 0.13) var(--fill), rgba(255, 245, 230, 0.13) 100%);
+    box-shadow: 0 0 10px rgba(255, 164, 93, 0.08);
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 11px;
+    height: 11px;
+    margin-top: -4.5px;
+    border-radius: 50%;
+    background: #ffe3bf;
+    border: 1px solid rgba(74, 42, 22, 0.65);
+    box-shadow: 0 0 0 2px rgba(22, 16, 11, 0.55), 0 0 13px rgba(255, 159, 82, 0.44);
+    transition: transform 0.15s ease;
+  }
+  input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); }
+  input[type="range"]::-moz-range-track { height: 2px; border-radius: 99px; background: rgba(255, 245, 230, 0.13); }
+  input[type="range"]::-moz-range-progress { height: 2px; border-radius: 99px; background: var(--accent); }
+  input[type="range"]::-moz-range-thumb { width: 10px; height: 10px; border: 1px solid rgba(74, 42, 22, 0.65); border-radius: 50%; background: #ffe3bf; }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 3px 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    color: rgba(255, 238, 215, 0.67);
+    font-size: 10.5px;
+    letter-spacing: 0.055em;
+  }
+  .toggle-row:hover { color: rgba(255, 245, 228, 0.92); }
+  .toggle-row .switch {
+    width: 29px;
+    height: 15px;
+    padding: 2px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 240, 218, 0.14);
+    background: rgba(255, 240, 218, 0.06);
+    transition: background 0.25s ease, border-color 0.25s ease;
+    flex: 0 0 auto;
+  }
+  .toggle-row .switch i {
+    display: block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: rgba(255, 243, 226, 0.36);
+    transition: transform 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+  }
+  .toggle-row[aria-pressed="true"] .switch { background: rgba(255, 164, 89, 0.25); border-color: rgba(255, 192, 129, 0.34); }
+  .toggle-row[aria-pressed="true"] .switch i { transform: translateX(13px); background: var(--accent-soft); box-shadow: 0 0 9px rgba(255, 174, 97, 0.5); }
+
+  .segmented {
+    display: flex;
+    gap: 3px;
+    padding: 3px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 236, 210, 0.08);
+    background: rgba(255, 240, 221, 0.035);
+    margin: 3px 0 7px;
+  }
+  .segmented button {
+    flex: 1;
+    height: 26px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: rgba(255, 237, 213, 0.42);
+    font-size: 9.5px;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  .segmented button.active { color: #23170e; background: linear-gradient(135deg, #ffd7a1, #eaa465); box-shadow: 0 2px 10px rgba(255, 165, 87, 0.16); }
+  .segmented button:hover:not(.active) { color: rgba(255, 243, 227, 0.8); background: rgba(255, 237, 212, 0.06); }
+
+  .camera-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .camera-grid button {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    min-height: 34px;
+    padding: 5px 8px;
+    border: 1px solid rgba(255, 231, 203, 0.09);
+    border-radius: 7px;
+    background: rgba(255, 240, 221, 0.028);
+    text-align: left;
+    cursor: pointer;
+    color: rgba(255, 241, 222, 0.64);
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+  .camera-grid button span {
+    font-family: var(--font-mono);
+    font-size: 7px;
+    letter-spacing: 0.14em;
+    color: rgba(255, 180, 107, 0.55);
+  }
+  .camera-grid button b { font-size: 9.5px; font-weight: 400; letter-spacing: 0.045em; }
+  .camera-grid button:hover { color: #fff2df; border-color: rgba(255, 194, 136, 0.22); background: rgba(255, 211, 164, 0.065); }
+  .camera-grid button.active { color: #ffe3be; border-color: rgba(255, 194, 136, 0.32); background: rgba(255, 181, 107, 0.09); }
+  .camera-grid button.wide { grid-column: span 2; min-height: 28px; flex-direction: row; justify-content: space-between; align-items: center; }
+  .camera-grid button.wide b { font-size: 9.5px; }
+
+  .sandbox-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+  }
+  .sandbox-actions button {
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 230, 200, 0.1);
+    background: rgba(255, 240, 221, 0.03);
+    color: rgba(255, 237, 215, 0.58);
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  }
+  .sandbox-actions button:hover { color: #fff0da; border-color: rgba(255, 194, 136, 0.24); background: rgba(255, 214, 166, 0.06); }
+  .sandbox-actions button.active { color: #ffe3be; background: rgba(255, 176, 100, 0.13); border-color: rgba(255, 194, 136, 0.35); }
+  .sandbox-tip {
+    margin-top: 5px;
+    color: rgba(255, 226, 190, 0.33);
+    font-size: 8.5px;
+    line-height: 1.55;
+    letter-spacing: 0.035em;
+  }
+
+  .panel-footer {
+    position: relative;
+    z-index: 2;
+    flex: 0 0 auto;
+    padding: 11px 18px 14px 19px;
+    border-top: 1px solid rgba(255, 233, 205, 0.09);
+    background: linear-gradient(to top, rgba(9, 12, 14, 0.55), transparent);
+  }
+  .transport {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .transport-main {
+    flex: 1;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 192, 129, 0.26);
+    background: linear-gradient(135deg, rgba(255, 190, 126, 0.2), rgba(198, 120, 67, 0.12));
+    color: #ffe8ca;
+    cursor: pointer;
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+  }
+  .transport-main:hover { background: linear-gradient(135deg, rgba(255, 199, 140, 0.28), rgba(198, 120, 67, 0.17)); border-color: rgba(255, 202, 144, 0.44); }
+  .transport-main:active { transform: scale(0.985); }
+  .transport-main.paused { border-color: rgba(126, 219, 206, 0.35); background: linear-gradient(135deg, rgba(126, 219, 206, 0.18), rgba(46, 113, 109, 0.1)); color: #d9fff6; }
+  .transport-main svg { width: 11px; height: 11px; }
+  .transport-icon {
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 231, 203, 0.12);
+    border-radius: 8px;
+    background: rgba(255, 240, 221, 0.035);
+    color: rgba(255, 239, 218, 0.6);
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  }
+  .transport-icon:hover { background: rgba(255, 212, 164, 0.08); color: #ffdfb9; border-color: rgba(255, 203, 143, 0.25); }
+  .transport-icon.active { color: #ffd9a9; border-color: rgba(255, 188, 119, 0.35); background: rgba(255, 177, 102, 0.1); }
+  .transport-icon svg { width: 13px; height: 13px; display: block; }
+
+  #hint-card {
+    left: 26px;
+    bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .hint-line {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 234, 207, 0.09);
+    background: rgba(10, 12, 13, 0.28);
+    backdrop-filter: blur(8px);
+    color: rgba(255, 238, 215, 0.6);
+    font-size: 9px;
+    letter-spacing: 0.065em;
+    line-height: 1.65;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.65);
+  }
+  .hint-line b { color: rgba(255, 231, 201, 0.76); font-weight: 500; }
+  .mouse-mark {
+    width: 14px;
+    height: 19px;
+    border: 1px solid rgba(255, 226, 192, 0.38);
+    border-radius: 8px;
+    position: relative;
+    flex: 0 0 auto;
+  }
+  .mouse-mark::before {
+    content: "";
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    width: 2px;
+    height: 4px;
+    margin-left: -1px;
+    border-radius: 2px;
+    background: var(--accent);
+    box-shadow: 0 0 6px rgba(255, 179, 107, 0.6);
+  }
+  #stats-pill {
+    left: 26px;
+    bottom: 82px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: fit-content;
+    padding: 5px 8px;
+    border-radius: 5px;
+    border: 1px solid rgba(255, 231, 202, 0.08);
+    background: rgba(12, 14, 14, 0.34);
+    backdrop-filter: blur(9px);
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: rgba(255, 235, 209, 0.48);
+    letter-spacing: 0.06em;
+  }
+  #stats-pill span:nth-child(2n) { color: rgba(255, 235, 209, 0.22); }
+  #fps-value { color: rgba(255, 201, 143, 0.62) !important; }
+  #stats-dot { width: 4px; height: 4px; border-radius: 50%; background: #83d9c6; box-shadow: 0 0 6px rgba(131, 217, 198, 0.6); }
+  #edit-banner {
+    position: fixed;
+    z-index: 28;
+    left: 50%;
+    bottom: 28px;
+    transform: translateX(-50%) translateY(8px);
+    padding: 8px 14px;
+    border-radius: 7px;
+    border: 1px solid rgba(255, 200, 139, 0.24);
+    background: rgba(20, 16, 12, 0.72);
+    backdrop-filter: blur(12px);
+    color: rgba(255, 226, 190, 0.76);
+    font-size: 9px;
+    letter-spacing: 0.09em;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+  body.edit-active #edit-banner { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #toast {
+    position: fixed;
+    z-index: 80;
+    top: 23px;
+    left: 50%;
+    transform: translate(-50%, -8px);
+    padding: 9px 15px;
+    border-radius: 7px;
+    border: 1px solid rgba(255, 198, 139, 0.2);
+    background: rgba(15, 15, 13, 0.76);
+    backdrop-filter: blur(16px);
+    color: rgba(255, 238, 214, 0.82);
+    font-size: 9.5px;
+    letter-spacing: 0.08em;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    white-space: nowrap;
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  #restore-ui {
+    position: fixed;
+    z-index: 70;
+    top: 20px;
+    right: 20px;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9px;
+    border: 1px solid rgba(255, 210, 160, 0.24);
+    background: rgba(12, 15, 16, 0.64);
+    backdrop-filter: blur(12px);
+    color: rgba(255, 230, 201, 0.7);
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    display: flex;
+    transition: opacity 0.35s ease;
+  }
+  #restore-ui svg { width: 14px; height: 14px; }
+  body.ui-hidden #restore-ui { opacity: 1; pointer-events: auto; }
+  body.ui-hidden #brand,
+  body.ui-hidden #hint-card,
+  body.ui-hidden #stats-pill,
+  body.ui-hidden #control-panel,
+  body.ui-hidden #edit-banner { opacity: 0 !important; pointer-events: none !important; transform: translateY(8px) !important; visibility: hidden; }
+  body.ui-hidden #control-panel { animation: none !important; transform: translateX(18px) !important; }
+
+  #loader {
+    position: fixed;
+    z-index: 100;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(ellipse at 54% 64%, rgba(125, 74, 41, 0.18), transparent 45%),
+      radial-gradient(ellipse at 11% 20%, rgba(54, 44, 72, 0.23), transparent 48%),
+      #0a0a0c;
+    transition: opacity 1.1s cubic-bezier(0.4, 0, 0.2, 1), visibility 1.1s;
+  }
+  #loader.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+  .loader-inner {
+    width: min(340px, 78vw);
+    text-align: center;
+    position: relative;
+  }
+  .loader-sigil {
+    width: 58px;
+    height: 58px;
+    margin: 0 auto 25px;
+    border: 1px solid rgba(255, 197, 134, 0.22);
+    border-radius: 50%;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .loader-sigil::before, .loader-sigil::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid transparent;
+  }
+  .loader-sigil::before {
+    inset: 5px;
+    border-top-color: rgba(255, 187, 114, 0.8);
+    border-right-color: rgba(255, 187, 114, 0.18);
+    animation: spin 2.7s linear infinite;
+  }
+  .loader-sigil::after {
+    width: 7px;
+    height: 7px;
+    background: var(--accent);
+    box-shadow: 0 0 18px rgba(255, 168, 88, 0.9);
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loader-kicker {
+    margin: 0 0 12px;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: rgba(255, 191, 120, 0.46);
+    letter-spacing: 0.27em;
+  }
+  .loader-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 36px;
+    letter-spacing: 0.03em;
+    color: #fff0db;
+  }
+  .loader-title em { color: var(--accent-soft); font-style: italic; }
+  .loader-sub {
+    margin: 9px 0 26px;
+    font-size: 9px;
+    color: rgba(255, 232, 203, 0.38);
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+  }
+  .loader-track {
+    height: 2px;
+    background: rgba(255, 242, 224, 0.09);
+    border-radius: 9px;
+    overflow: hidden;
+    margin-bottom: 11px;
+  }
+  #loader-bar {
+    display: block;
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #a35c3b, var(--accent), #ffe1b3);
+    box-shadow: 0 0 10px rgba(255, 169, 89, 0.42);
+    transition: width 0.45s ease;
+  }
+  #loader-text {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: rgba(255, 233, 205, 0.36);
+    letter-spacing: 0.12em;
+  }
+  #loader-error {
+    display: none;
+    margin-top: 19px;
+    padding: 10px;
+    border: 1px solid rgba(255, 95, 79, 0.32);
+    border-radius: 7px;
+    color: #ffb3a4;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    line-height: 1.6;
+    text-align: left;
+    white-space: pre-wrap;
+    background: rgba(87, 19, 15, 0.2);
+  }
+
+  #scanlines {
+    position: fixed;
+    z-index: 8;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.05;
+    background: repeating-linear-gradient(to bottom, transparent 0, transparent 2px, rgba(255, 242, 224, 0.22) 3px);
+    mix-blend-mode: soft-light;
+  }
+  #frame-corner {
+    position: fixed;
+    z-index: 9;
+    inset: 15px;
+    pointer-events: none;
+    border: 1px solid rgba(255, 231, 202, 0.055);
+    border-radius: 1px;
+    box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.13);
+  }
+  #frame-corner::before, #frame-corner::after {
+    content: "";
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-color: rgba(255, 201, 143, 0.28);
+    border-style: solid;
+  }
+  #frame-corner::before { top: -1px; left: -1px; border-width: 1px 0 0 1px; }
+  #frame-corner::after { bottom: -1px; right: -1px; border-width: 0 1px 1px 0; }
+
+  @media (max-width: 900px) {
+    #control-panel { width: 320px; right: 13px; top: 13px; max-height: calc(100vh - 26px); }
+    .panel-scroll { max-height: calc(100vh - 222px); }
+    #brand { top: 18px; left: 18px; }
+    #hint-card { left: 18px; bottom: 18px; }
+    #brand h1 { font-size: 35px; }
+  }
+  @media (max-width: 720px) {
+    #control-panel {
+      top: auto;
+      bottom: 10px;
+      left: 10px;
+      right: 10px;
+      width: auto;
+      max-height: 47vh;
+      border-radius: 13px;
+    }
+    .panel-scroll { max-height: 30vh; }
+    .panel-head { padding: 12px 14px 10px; }
+    .panel-head h2 { font-size: 18px; }
+    .panel-footer { padding: 9px 14px 11px; }
+    #brand { top: 16px; left: 16px; }
+    #brand h1 { font-size: 29px; }
+    .brand-sub { font-size: 8px; margin-top: 8px; }
+    .brand-eyebrow { font-size: 7px; margin-bottom: 7px; }
+    #hint-card { display: none; }
+    #stats-pill { top: 104px; left: 16px; bottom: auto; }
+    #frame-corner { inset: 7px; }
+    #toast { top: 14px; max-width: calc(100vw - 32px); white-space: normal; text-align: center; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+<canvas id="gl" aria-label="可交互的瓶中海洋 3D 场景"></canvas>
+<div id="scanlines"></div>
+<div id="frame-corner"></div>
+
+<div id="loader" role="status" aria-live="polite">
+  <div class="loader-inner">
+    <div class="loader-sigil"></div>
+    <p class="loader-kicker">DEEPSEEK HARNESS · REALTIME WEBGL</p>
+    <h1 class="loader-title">Bottle <em>Ocean</em></h1>
+    <p class="loader-sub">瓶中海洋 · 黄昏海岸微缩景观</p>
+    <div class="loader-track"><span id="loader-bar"></span></div>
+    <p id="loader-text">正在注入海水与黄昏光线…</p>
+    <div id="loader-error"></div>
+  </div>
+</div>
+
+<header id="brand" class="hud">
+  <div class="brand-eyebrow">Interactive Diorama <i>·</i> No. 01</div>
+  <h1>Bottle <em>Ocean</em></h1>
+  <div class="brand-sub"><span>瓶中海洋</span><b>Pixel Sandbox</b><span>WebGL</span></div>
+</header>
+
+<div id="stats-pill" class="hud">
+  <span id="stats-dot"></span>
+  <span id="fps-value">-- FPS</span>
+  <span>/</span>
+  <span id="resolution-value">--</span>
+  <span>/</span>
+  <span id="wave-readout">SWELL 35</span>
+</div>
+
+<div id="hint-card" class="hud">
+  <div id="hint-main" class="hint-line"><span class="mouse-mark"></span><span><b>左键</b>环绕 · <b>右键</b>平移 · <b>滚轮</b>远近<br><b>双击</b>聚焦瓶子或地形 · <b>H</b> 隐藏界面</span></div>
+</div>
+
+<aside id="control-panel" aria-label="场景控制台">
+  <div class="panel-head">
+    <div>
+      <span class="panel-kicker">CONTROL DECK / 01</span>
+      <h2>瓶中海洋 <em>CONTROLS</em></h2>
+    </div>
+    <div class="panel-head-actions">
+      <button class="icon-button" id="panel-toggle" data-action="togglePanel" title="收起 / 展开控制面板" aria-label="收起或展开控制面板">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M3 10l5-5 5 5"/></svg>
+      </button>
+      <button class="icon-button" data-action="toggleUI" title="隐藏界面 / H" aria-label="隐藏界面">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M2.5 8s2-4 5.5-4 5.5 4 5.5 4-2 4-5.5 4S2.5 8 2.5 8z"/><circle cx="8" cy="8" r="1.8"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="panel-scroll">
+    <section class="control-section">
+      <div class="section-head"><span class="section-index">01</span><h3>瓶中海浪</h3><em>OCEAN</em></div>
+      <div class="control">
+        <div class="control-head"><label for="waveHeight">海浪高度</label><output data-output="waveHeight">35%</output></div>
+        <input id="waveHeight" data-control="waveHeight" type="range" min="0" max="100" step="1" value="35" />
+      </div>
+      <div class="control">
+        <div class="control-head"><label for="waveSpeed">海浪速度</label><output data-output="waveSpeed">1.00×</output></div>
+        <input id="waveSpeed" data-control="waveSpeed" type="range" min="0.2" max="3" step="0.05" value="1" />
+      </div>
+      <div class="control">
+        <div class="control-head"><label for="waveDensity">波浪密度</label><output data-output="waveDensity">1.25×</output></div>
+        <input id="waveDensity" data-control="waveDensity" type="range" min="0.5" max="3" step="0.05" value="1.25" />
+      </div>
+      <div class="control">
+        <div class="control-head"><label for="waveDirection">海浪方向</label><output data-output="waveDirection">28°</output></div>
+        <input id="waveDirection" data-control="waveDirection" type="range" min="0" max="360" step="1" value="28" />
+      </div>
+      <div class="control">
+        <div class="control-head"><label for="waterLevel">水位高度</label><output data-output="waterLevel">42%</output></div>
+        <input id="waterLevel" data-control="waterLevel" type="range" min="0" max="100" step="1" value="42" />
+      </div>
+    </section>
+
+    <section class="control-section">
+      <div class="section-head"><span class="section-index">02</span><h3>帆船物理</h3><em>SHIP</em></div>
+      <div class="control">
+        <div class="control-head"><label for="boatResponse">船体响应</label><output data-output="boatResponse">72%</output></div>
+        <input id="boatResponse" data-control="boatResponse" type="range" min="0" max="100" step="1" value="72" />
+      </div>
+      <div class="control">
+        <div class="control-head"><label for="boatDamping">浮动阻尼</label><output data-output="boatDamping">48%</output></div>
+        <input id="boatDamping" data-control="boatDamping" type="range" min="0" max="100" step="1" value="48" />
+      </div>
+      <div class="control">
+        <div class="control-head"><label for="wind">风力</label><output data-output="wind">22%</output></div>
+        <input id="wind" data-control="wind" type="range" min="0" max="100" step="1" value="22" />
+      </div>
+    </section>
+
+    <section class="control-section">
+      <div class="section-head"><span class="section-index">03</span><h3>视觉与画质</h3><em>LOOK</em></div>
+      <div class="segmented" role="group" aria-label="画质预设">
+        <button type="button" data-quality="fine" class="active">精致</button>
+        <button type="button" data-quality="standard">标准</button>
+        <button type="button" data-quality="retro">复古</button>
+      </div>
+      <div class="control">
+        <div class="control-head"><label for="pixelScale">像素化强度</label><output data-output="pixelScale">2.0×</output></div>
+        <input id="pixelScale" data-control="pixelScale" type="range" min="1" max="5" step="0.1" value="2" />
+      </div>
+      <div class="control">
+        <div class="control-head"><label for="sunset">夕阳时间</label><output data-output="sunset">45%</output></div>
+        <input id="sunset" data-control="sunset" type="range" min="0" max="100" step="1" value="45" />
+      </div>
+      <div class="control">
+        <div class="control-head"><label for="brightness">场景亮度</label><output data-output="brightness">0.82×</output></div>
+        <input id="brightness" data-control="brightness" type="range" min="0.6" max="1.6" step="0.05" value="0.82" />
+      </div>
+      <div class="control">
+        <div class="control-head"><label for="glassOpacity">瓶身透明度</label><output data-output="glassOpacity">15%</output></div>
+        <input id="glassOpacity" data-control="glassOpacity" type="range" min="0.04" max="0.4" step="0.01" value="0.15" />
+      </div>
+      <button class="toggle-row" data-toggle="lighthouse" aria-pressed="true"><span>灯塔灯光</span><span class="switch"><i></i></span></button>
+      <button class="toggle-row" data-toggle="spray" aria-pressed="true"><span>浪花效果</span><span class="switch"><i></i></span></button>
+      <button class="toggle-row" data-toggle="dust" aria-pressed="true"><span>沙尘粒子</span><span class="switch"><i></i></span></button>
+    </section>
+
+    <section class="control-section">
+      <div class="section-head"><span class="section-index">04</span><h3>镜头机位</h3><em>CAMERA</em></div>
+      <div class="camera-grid">
+        <button type="button" data-preset="cinema" class="active"><span>01 / CINEMA</span><b>电影主视角</b></button>
+        <button type="button" data-preset="side"><span>02 / BOTTLE</span><b>瓶身侧视角</b></button>
+        <button type="button" data-preset="top"><span>03 / OVERHEAD</span><b>俯视沙盘</b></button>
+        <button type="button" data-preset="closeup"><span>04 / SHIP</span><b>帆船特写</b></button>
+        <button type="button" data-preset="panorama" class="wide"><span>05 / PANORAMA</span><b>环境全景</b></button>
+      </div>
+    </section>
+
+    <section class="control-section">
+      <div class="section-head"><span class="section-index">05</span><h3>沙地布置</h3><em>SANDBOX</em></div>
+      <div class="sandbox-actions">
+        <button type="button" data-edit="rock">放置石头</button>
+        <button type="button" data-edit="shell">放置贝壳</button>
+        <button type="button" data-action="undoProp">撤销放置</button>
+        <button type="button" data-action="resetProps">恢复装饰</button>
+      </div>
+      <p class="sandbox-tip">选择一种物件后，在沙地或礁石表面点击放置。滚轮仍可缩放，拖动仍可旋转视角。</p>
+    </section>
+  </div>
+
+  <div class="panel-footer">
+    <div class="transport">
+      <button type="button" class="transport-main" data-action="pause" id="pause-button">
+        <svg viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3 2h3v10H3zM8 2h3v10H8z"/></svg>
+        <span id="pause-label">暂停模拟</span>
+      </button>
+      <button type="button" class="transport-icon" data-action="reset" title="重置所有参数" aria-label="重置所有参数">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><path d="M13 8a5 5 0 1 1-1.75-3.8"/><path d="M13 2.8V6h-3.2"/></svg>
+      </button>
+      <button type="button" class="transport-icon" data-action="resetCamera" title="恢复默认镜头" aria-label="恢复默认镜头">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><path d="M2 6.5V3.3h3.2M14 9.5v3.2h-3.2"/><path d="M13.2 6.2a5.4 5.4 0 0 0-8.9-2L2 6.5M2.8 9.8a5.4 5.4 0 0 0 8.9 2l2.3-2.3"/></svg>
+      </button>
+      <button type="button" class="transport-icon" data-action="screenshot" title="保存当前截图" aria-label="保存当前截图">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2.1" y="4.1" width="11.8" height="9" rx="1.6"/><path d="M5.5 4.1l.9-1.4h3.2l.9 1.4"/><circle cx="8" cy="8.6" r="2.2"/></svg>
+      </button>
+    </div>
+  </div>
+</aside>
+
+<button id="restore-ui" type="button" data-action="toggleUI" title="显示界面 (H)" aria-label="显示界面">
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 6.2h12M5.2 9.2h2.2"/></svg>
+</button>
+
+<div id="edit-banner">布置模式 · 点击场景放置物体 — ESC 退出</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<noscript style="position:fixed;inset:0;z-index:200;background:#0b0909;color:#ffe6c5;display:grid;place-items:center;font-family:serif;">请启用 JavaScript 以进入瓶中海洋。</noscript>
+
+<!-- BOTTLE_OCEAN_BUNDLE -->
+</body>
+</html>

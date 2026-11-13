@@ -1,0 +1,24 @@
+{
+  "name": "beach-bottle-boat",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bottle Ocean — an offline interactive Three.js pixel-art diorama of a glass bottle containing a miniature ocean and a wave-driven sailing ship.",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Banagher-001/Beach-Bottle-Boat.git"
+  },
+  "homepage": "https://banagher-001.github.io/Beach-Bottle-Boat/",
+  "scripts": {
+    "build": "node build.mjs",
+    "serve": "node tools/serve.mjs",
+    "qa": "node tools/qa.mjs"
+  },
+  "dependencies": {
+    "three": "0.180.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.11",
+    "playwright-core": "1.56.1"
+  }
+}

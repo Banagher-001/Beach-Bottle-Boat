@@ -1,0 +1,16 @@
+# dependencies
+node_modules/
+
+# build cache
+.build/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# local previews / temp
+*.tmp
+*.temp
